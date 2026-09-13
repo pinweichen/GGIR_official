@@ -222,6 +222,9 @@ g.inspectfile = function(datafile, desiredtz = "", params_rawdata = c(),
     # This allows CSV files from known devices (ActiGraph, GENEActiv) to use
     # the correct processing parameters (calibration, non-wear, clipping)
     # while still being read through the AD_HOC_CSV format pathway.
+    detected_dynrange = c()
+    detected_temp_col = c()
+    detected_timezone = c()
     if (inherits(Pusercsvformat$header, "data.frame")) {
       hdr_names = rownames(Pusercsvformat$header)
       brand_idx = which(hdr_names == "device_brand")
@@ -234,6 +237,35 @@ g.inspectfile = function(datafile, desiredtz = "", params_rawdata = c(),
         } else if (device_brand %in% c("axivity")) {
           mon = MONITOR$AXIVITY
         }
+      }
+      # Extract dynamic range from header if present
+      dynrange_idx = which(tolower(hdr_names) %in% c("dynamic_range", "dynamicrange"))
+      if (length(dynrange_idx) > 0) {
+        dr_val = suppressWarnings(as.numeric(trimws(as.character(
+          Pusercsvformat$header[dynrange_idx[1], 1]))))
+        if (!is.na(dr_val) && dr_val > 0) {
+          detected_dynrange = dr_val
+        }
+      }
+      # Extract timezone from header if present (e.g., "Timezone: America/New_York").
+      # For standard CSV files, timestamps are stored in UTC and the Timezone header
+      # indicates the device's local timezone (i.e., the desired output timezone).
+      tz_idx = which(tolower(hdr_names) %in% c("timezone", "time_zone"))
+      if (length(tz_idx) > 0) {
+        tz_val = trimws(as.character(Pusercsvformat$header[tz_idx[1], 1]))
+        if (nchar(tz_val) > 0 && tz_val %in% OlsonNames()) {
+          detected_timezone = tz_val
+        }
+      }
+    }
+    # Auto-detect temperature column in the data if rmc.col.temp is not set.
+    # Standard CSV may optionally include a temperature column after acc_x/y/z.
+    if (length(params_rawdata[["rmc.col.temp"]]) == 0 &&
+        inherits(Pusercsvformat$data, "data.frame")) {
+      data_colnames = tolower(colnames(Pusercsvformat$data))
+      temp_idx = which(data_colnames %in% c("temperature", "temp"))
+      if (length(temp_idx) > 0) {
+        detected_temp_col = temp_idx[1]
       }
     }
   }
@@ -375,6 +407,13 @@ g.inspectfile = function(datafile, desiredtz = "", params_rawdata = c(),
   monn = ifelse(mon > 0, monnames[mon], "unknown")
   dformc = dformat
   dformn = fornames[dformat]
+  # Include detected dynamic range, temperature column, and timezone from standard CSV header
+  if (!exists("detected_dynrange")) detected_dynrange = c()
+  if (!exists("detected_temp_col")) detected_temp_col = c()
+  if (!exists("detected_timezone")) detected_timezone = c()
   invisible(list(header = header, monc = monc, monn = monn,
-                 dformc = dformc, dformn = dformn, sf = sf, decn = decn, filename = filename))
+                 dformc = dformc, dformn = dformn, sf = sf, decn = decn, filename = filename,
+                 detected_dynrange = detected_dynrange,
+                 detected_temp_col = detected_temp_col,
+                 detected_timezone = detected_timezone))
 }

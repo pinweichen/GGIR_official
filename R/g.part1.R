@@ -127,6 +127,27 @@ g.part1 = function(datadir = c(), metadatadir = c(), f0 = 1, f1 = c(), myfun = c
                         params_rawdata = params_rawdata,
                         configtz = params_general[["configtz"]])
     if (verbose == TRUE) cat(paste0("\nP1 file ",i))
+    # Apply dynamic range detected from standard CSV header
+    if (length(I$detected_dynrange) > 0 && length(params_rawdata[["dynrange"]]) == 0) {
+      params_rawdata[["dynrange"]] = I$detected_dynrange
+    }
+    # Apply auto-detected temperature column from standard CSV data
+    if (length(I$detected_temp_col) > 0 && length(params_rawdata[["rmc.col.temp"]]) == 0) {
+      params_rawdata[["rmc.col.temp"]] = I$detected_temp_col
+    }
+    # Apply auto-detected timezone from standard CSV header.
+    # Standard CSV timestamps are stored in UTC; the header's Timezone field
+    # indicates the device's local timezone (= desired output timezone).
+    # Set configtz = "UTC" so GGIR correctly interprets the timestamps,
+    # and desiredtz from the header so output aligns with the device's local time.
+    if (length(I$detected_timezone) > 0) {
+      if (length(params_general[["configtz"]]) == 0 || params_general[["configtz"]] == "") {
+        params_general[["configtz"]] = "UTC"
+      }
+      if (length(params_general[["desiredtz"]]) == 0 || params_general[["desiredtz"]] == "") {
+        params_general[["desiredtz"]] = I$detected_timezone
+      }
+    }
     turn.do.cal.back.on = FALSE
     if (params_rawdata[["do.cal"]] == TRUE & I$dformc == FORMAT$WAV) { # do not do the auto-calibration for wav files (because already done in pre-processign)
       params_rawdata[["do.cal"]] = FALSE
